@@ -111,7 +111,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         Optional<IdempotencyRecord> existing = store.putIfAbsent(storeKey, fingerprint, ttl);
         if (existing.isPresent()) {
-            handleExisting(existing.get(), request, response);
+            handleExisting(existing.get(), fingerprint, request, response);
             return;
         }
 
@@ -131,10 +131,9 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         capturingResponse.copyBodyToResponse();
     }
 
-    private void handleExisting(IdempotencyRecord record, HttpServletRequest request, HttpServletResponse response)
-            throws IOException {
-        if (!record.matches(RequestFingerprint.of(request.getMethod(), requestTarget(request),
-                StreamUtils.copyToByteArray(request.getInputStream())))) {
+    private void handleExisting(IdempotencyRecord record, String fingerprint, HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        if (!record.matches(fingerprint)) {
             ProblemResponses.write(request, response, HttpStatus.UNPROCESSABLE_ENTITY, "Idempotency key reused",
                     "This " + properties.getHeaderName() + " was already used for a different request");
             return;
