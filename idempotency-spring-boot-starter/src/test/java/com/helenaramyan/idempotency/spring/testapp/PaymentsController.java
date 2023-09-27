@@ -22,6 +22,7 @@ public class PaymentsController {
     private final AtomicInteger invocations = new AtomicInteger();
     private final AtomicInteger sequence = new AtomicInteger();
     private final AtomicInteger failuresLeft = new AtomicInteger();
+    private final AtomicInteger declinesLeft = new AtomicInteger();
 
     public int invocations() {
         return invocations.get();
@@ -30,6 +31,12 @@ public class PaymentsController {
     public void reset() {
         invocations.set(0);
         failuresLeft.set(0);
+        declinesLeft.set(0);
+    }
+
+    /** Makes the next {@code count} calls to {@code /payments/declinable} answer 402. */
+    public void declineNext(int count) {
+        declinesLeft.set(count);
     }
 
     /** Makes the next {@code count} calls to {@code /payments/flaky} throw before producing a response. */
@@ -76,6 +83,16 @@ public class PaymentsController {
             throw new IllegalStateException("acquirer connection reset");
         }
         return Map.of("id", "pay_" + sequence.incrementAndGet());
+    }
+
+    @PostMapping("/declinable")
+    @Idempotent
+    public ResponseEntity<Map<String, Object>> createDeclinable(@RequestBody PaymentRequest request) {
+        invocations.incrementAndGet();
+        if (declinesLeft.getAndUpdate(n -> n > 0 ? n - 1 : 0) > 0) {
+            return ResponseEntity.status(402).body(Map.of("error", "insufficient_funds"));
+        }
+        return ResponseEntity.status(201).body(Map.of("id", "pay_" + sequence.incrementAndGet()));
     }
 
     @PostMapping("/unprotected")

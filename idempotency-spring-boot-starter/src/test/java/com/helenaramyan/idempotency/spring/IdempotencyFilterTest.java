@@ -268,6 +268,28 @@ class IdempotencyFilterTest {
 
             assertThat(controller.invocations()).isEqualTo(2);
         }
+
+        @Test
+        void non2xxResponseIsNotStoredByDefault() throws Exception {
+            String key = newKey();
+            controller.declineNext(1);
+            MockHttpServletRequestBuilder request = post("/payments/declinable")
+                    .header(KEY_HEADER, key).contentType(MediaType.APPLICATION_JSON).content(PAYMENT);
+
+            mvc.perform(request)
+                    .andExpect(status().isPaymentRequired())
+                    .andExpect(jsonPath("$.error").value("insufficient_funds"));
+            assertThat(store.get(properties.getKeyPrefix() + key)).isEmpty();
+
+            mvc.perform(request)
+                    .andExpect(status().isCreated())
+                    .andExpect(header().doesNotExist(IdempotencyFilter.REPLAYED_HEADER));
+            mvc.perform(request)
+                    .andExpect(status().isCreated())
+                    .andExpect(header().string(IdempotencyFilter.REPLAYED_HEADER, "true"));
+
+            assertThat(controller.invocations()).isEqualTo(2);
+        }
     }
 
     @Nested

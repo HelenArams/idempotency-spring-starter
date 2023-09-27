@@ -29,6 +29,12 @@ public class IdempotencyProperties {
     /** Prefix prepended to every key before it reaches the store, handy for shared Redis instances. */
     private String keyPrefix = "idempotency:";
 
+    /**
+     * Whether non-2xx responses are stored and replayed too. Off by default: a declined or failed
+     * attempt releases the key so the client may retry the same request with the same key.
+     */
+    private boolean storeFailures = false;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -67,5 +73,13 @@ public class IdempotencyProperties {
 
     public void setKeyPrefix(String keyPrefix) {
         this.keyPrefix = keyPrefix;
+    }
+
+    public boolean isStoreFailures() {
+        return storeFailures;
+    }
+
+    public void setStoreFailures(boolean storeFailures) {
+        this.storeFailures = storeFailures;
     }
 }

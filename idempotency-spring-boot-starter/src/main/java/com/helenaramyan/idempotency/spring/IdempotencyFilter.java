@@ -45,6 +45,9 @@ import org.springframework.web.util.ServletRequestPathUtils;
  *       replayed with an {@code Idempotent-Replayed: true} header and the handler is not invoked.</li>
  * </ul>
  *
+ * <p>Only successful (2xx) responses are stored unless {@code idempotency.store-failures} is on;
+ * a failed attempt releases the key so the same request may be retried with the same key.</p>
+ *
  * <p>Runs as a servlet filter rather than a {@code HandlerInterceptor} because the response body
  * has to be captured, which only a filter wrapping the response can do. The target handler is
  * resolved through the {@link RequestMappingHandlerMapping} so the annotation can be read before
@@ -134,8 +137,16 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             return;
         }
 
-        store.complete(storeKey, fingerprint, capture(capturingResponse), ttl);
+        if (isStorable(capturingResponse.getStatus())) {
+            store.complete(storeKey, fingerprint, capture(capturingResponse), ttl);
+        } else {
+            store.remove(storeKey);
+        }
         capturingResponse.copyBodyToResponse();
+    }
+
+    private boolean isStorable(int status) {
+        return properties.isStoreFailures() || HttpStatus.Series.resolve(status) == HttpStatus.Series.SUCCESSFUL;
     }
 
     private void handleExisting(IdempotencyRecord record, String fingerprint, HttpServletRequest request,

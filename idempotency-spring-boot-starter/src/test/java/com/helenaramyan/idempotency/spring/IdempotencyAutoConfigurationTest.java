@@ -32,6 +32,7 @@ class IdempotencyAutoConfigurationTest {
             assertThat(properties.getTtl()).isEqualTo(Duration.ofHours(24));
             assertThat(properties.getKeyPrefix()).isEqualTo("idempotency:");
             assertThat(properties.getStore()).isEqualTo(IdempotencyProperties.Store.MEMORY);
+            assertThat(properties.isStoreFailures()).isFalse();
         });
     }
 
@@ -40,12 +41,14 @@ class IdempotencyAutoConfigurationTest {
         webRunner.withPropertyValues(
                         "idempotency.header-name=X-Idempotency-Key",
                         "idempotency.ttl=12h",
-                        "idempotency.key-prefix=payments:idem:")
+                        "idempotency.key-prefix=payments:idem:",
+                        "idempotency.store-failures=true")
                 .run(context -> {
                     IdempotencyProperties properties = context.getBean(IdempotencyProperties.class);
                     assertThat(properties.getHeaderName()).isEqualTo("X-Idempotency-Key");
                     assertThat(properties.getTtl()).isEqualTo(Duration.ofHours(12));
                     assertThat(properties.getKeyPrefix()).isEqualTo("payments:idem:");
+                    assertThat(properties.isStoreFailures()).isTrue();
                 });
     }
 
