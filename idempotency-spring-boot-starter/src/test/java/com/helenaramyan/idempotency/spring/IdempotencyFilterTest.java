@@ -1,6 +1,7 @@
 package com.helenaramyan.idempotency.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -244,6 +245,28 @@ class IdempotencyFilterTest {
             store.putIfAbsent(properties.getKeyPrefix() + key, fingerprint, Duration.ofMinutes(1));
 
             mvc.perform(payment(key, OTHER_PAYMENT)).andExpect(status().isUnprocessableEntity());
+        }
+    }
+
+    @Nested
+    class Failures {
+
+        @Test
+        void handlerExceptionReleasesTheKeySoTheClientCanRetry() throws Exception {
+            String key = newKey();
+            controller.failNext(1);
+            MockHttpServletRequestBuilder request = post("/payments/flaky")
+                    .header(KEY_HEADER, key).contentType(MediaType.APPLICATION_JSON).content(PAYMENT);
+
+            assertThatThrownBy(() -> mvc.perform(request)).hasRootCauseMessage("acquirer connection reset");
+            assertThat(store.get(properties.getKeyPrefix() + key)).as("no stuck in-flight marker").isEmpty();
+
+            mvc.perform(request)
+                    .andExpect(status().isOk())
+                    .andExpect(header().doesNotExist(IdempotencyFilter.REPLAYED_HEADER));
+            mvc.perform(request).andExpect(header().string(IdempotencyFilter.REPLAYED_HEADER, "true"));
+
+            assertThat(controller.invocations()).isEqualTo(2);
         }
     }
 

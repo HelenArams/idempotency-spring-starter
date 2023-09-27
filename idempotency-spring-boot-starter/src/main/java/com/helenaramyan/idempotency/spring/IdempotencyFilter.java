@@ -117,7 +117,14 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         CachedBodyHttpServletRequest replayableRequest = new CachedBodyHttpServletRequest(request, body);
         CapturingResponseWrapper capturingResponse = new CapturingResponseWrapper(response);
-        chain.doFilter(replayableRequest, capturingResponse);
+        try {
+            chain.doFilter(replayableRequest, capturingResponse);
+        } catch (IOException | ServletException | RuntimeException | Error e) {
+            // The handler never produced a response, so there is nothing worth replaying: release
+            // the key instead of leaving an in-flight marker that would turn every retry into a 409.
+            store.remove(storeKey);
+            throw e;
+        }
 
         if (request.isAsyncStarted()) {
             // The response will be produced on another thread later on; we cannot capture it here.

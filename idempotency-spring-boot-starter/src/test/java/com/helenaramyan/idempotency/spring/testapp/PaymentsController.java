@@ -21,6 +21,7 @@ public class PaymentsController {
 
     private final AtomicInteger invocations = new AtomicInteger();
     private final AtomicInteger sequence = new AtomicInteger();
+    private final AtomicInteger failuresLeft = new AtomicInteger();
 
     public int invocations() {
         return invocations.get();
@@ -28,6 +29,12 @@ public class PaymentsController {
 
     public void reset() {
         invocations.set(0);
+        failuresLeft.set(0);
+    }
+
+    /** Makes the next {@code count} calls to {@code /payments/flaky} throw before producing a response. */
+    public void failNext(int count) {
+        failuresLeft.set(count);
     }
 
     @PostMapping
@@ -58,6 +65,16 @@ public class PaymentsController {
     @Idempotent(ttl = "2s")
     public Map<String, Object> createShortLived(@RequestBody PaymentRequest request) {
         invocations.incrementAndGet();
+        return Map.of("id", "pay_" + sequence.incrementAndGet());
+    }
+
+    @PostMapping("/flaky")
+    @Idempotent
+    public Map<String, Object> createFlaky(@RequestBody PaymentRequest request) {
+        invocations.incrementAndGet();
+        if (failuresLeft.getAndUpdate(n -> n > 0 ? n - 1 : 0) > 0) {
+            throw new IllegalStateException("acquirer connection reset");
+        }
         return Map.of("id", "pay_" + sequence.incrementAndGet());
     }
 
