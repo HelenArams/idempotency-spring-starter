@@ -2,16 +2,22 @@ package com.helenaramyan.idempotency.spring;
 
 import com.helenaramyan.idempotency.core.IdempotencyStore;
 import com.helenaramyan.idempotency.core.InMemoryIdempotencyStore;
+import com.helenaramyan.idempotency.core.RedisIdempotencyStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -19,7 +25,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * Wires the {@link IdempotencyFilter} into any servlet web application on the classpath.
  * Define your own {@link IdempotencyStore} bean to replace the auto-configured one.
  */
-@AutoConfiguration
+@AutoConfiguration(after = RedisAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass(DispatcherServlet.class)
 @ConditionalOnProperty(prefix = "idempotency", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -41,9 +47,15 @@ public class IdempotencyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public IdempotencyFilter idempotencyFilter(IdempotencyStore store, IdempotencyProperties properties,
+    public IdempotencyFilter idempotencyFilter(ObjectProvider<IdempotencyStore> store, IdempotencyProperties properties,
             ObjectProvider<RequestMappingHandlerMapping> handlerMapping) {
-        return new IdempotencyFilter(store, properties, handlerMapping);
+        IdempotencyStore resolved = store.getIfAvailable();
+        if (resolved == null) {
+            throw new IllegalStateException("No IdempotencyStore available for idempotency.store=" + properties.getStore()
+                    + ". For REDIS add spring-boot-starter-data-redis (and jackson-databind) to the classpath"
+                    + " or define an IdempotencyStore bean yourself.");
+        }
+        return new IdempotencyFilter(resolved, properties, handlerMapping);
     }
 
     @Bean
@@ -52,5 +64,18 @@ public class IdempotencyAutoConfiguration {
         registration.setName("idempotencyFilter");
         registration.setOrder(FILTER_ORDER);
         return registration;
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass({StringRedisTemplate.class, ObjectMapper.class})
+    @ConditionalOnProperty(prefix = "idempotency", name = "store", havingValue = "redis")
+    static class RedisStoreConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(IdempotencyStore.class)
+        @ConditionalOnBean(StringRedisTemplate.class)
+        RedisIdempotencyStore redisIdempotencyStore(StringRedisTemplate redisTemplate) {
+            return new RedisIdempotencyStore(redisTemplate);
+        }
     }
 }

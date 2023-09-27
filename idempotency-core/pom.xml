@@ -15,6 +15,18 @@
   <description>Framework-agnostic idempotency store contract, request fingerprinting and store implementations.</description>
 
   <dependencies>
+    <!-- Only needed by RedisIdempotencyStore; the in-memory store has no dependencies at all. -->
+    <dependency>
+      <groupId>org.springframework.data</groupId>
+      <artifactId>spring-data-redis</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

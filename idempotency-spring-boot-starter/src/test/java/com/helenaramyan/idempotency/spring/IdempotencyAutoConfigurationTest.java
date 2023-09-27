@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.helenaramyan.idempotency.core.IdempotencyStore;
 import com.helenaramyan.idempotency.core.InMemoryIdempotencyStore;
+import com.helenaramyan.idempotency.core.RedisIdempotencyStore;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -65,6 +67,29 @@ class IdempotencyAutoConfigurationTest {
         webRunner.withUserConfiguration(CustomStoreConfiguration.class).run(context -> {
             assertThat(context).hasSingleBean(IdempotencyStore.class);
             assertThat(context.getBean(IdempotencyStore.class)).isSameAs(CustomStoreConfiguration.STORE);
+        });
+    }
+
+    @Test
+    void usesRedisStoreWhenConfiguredAndTemplateIsAvailable() {
+        new WebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(WebMvcAutoConfiguration.class, RedisAutoConfiguration.class,
+                        IdempotencyAutoConfiguration.class))
+                .withPropertyValues("idempotency.store=redis")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(RedisIdempotencyStore.class);
+                    assertThat(context).doesNotHaveBean(InMemoryIdempotencyStore.class);
+                    assertThat(context).hasSingleBean(IdempotencyFilter.class);
+                });
+    }
+
+    @Test
+    void failsClearlyWhenRedisStoreIsRequestedWithoutRedis() {
+        webRunner.withPropertyValues("idempotency.store=redis").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .hasMessageContaining("idempotency.store=REDIS")
+                    .hasMessageContaining("spring-boot-starter-data-redis");
         });
     }
 
