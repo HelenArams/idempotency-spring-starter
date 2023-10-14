@@ -1,0 +1,9 @@
+server:
+  port: 8080
+
+idempotency:
+  header-name: Idempotency-Key
+  ttl: 24h
+  store: memory
+  # store: redis   # needs spring-boot-starter-data-redis + spring.data.redis.* settings
+  key-prefix: "payments-api:idem:"
