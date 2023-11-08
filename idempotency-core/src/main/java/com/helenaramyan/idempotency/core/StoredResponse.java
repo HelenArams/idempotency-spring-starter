@@ -37,12 +37,10 @@ public final class StoredResponse {
         return status;
     }
 
-    /** Header names and their values, in the order they were recorded. Never {@code null}. */
     public Map<String, List<String>> headers() {
         return headers;
     }
 
-    /** A copy of the response body; empty (never {@code null}) when the response had none. */
     public byte[] body() {
         return body.length == 0 ? EMPTY : body.clone();
     }
@@ -51,7 +49,6 @@ public final class StoredResponse {
         return body.length;
     }
 
-    /** Convenience for tests and logging: the body decoded as UTF-8. */
     public String bodyAsString() {
         return new String(body, StandardCharsets.UTF_8);
     }

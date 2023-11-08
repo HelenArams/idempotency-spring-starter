@@ -10,11 +10,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Lets the filter consume the request body for fingerprinting and still hand a readable body to
- * the controller. The body is held in memory, which is the right trade-off for the small JSON
- * payloads idempotent payment endpoints receive.
- */
+// We read the body once to fingerprint it, so the controller needs a fresh stream over the same bytes.
+// Whole body sits in memory; fine for payment JSON, not for file uploads.
 final class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
 
     private final byte[] body;

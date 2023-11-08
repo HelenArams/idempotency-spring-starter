@@ -43,7 +43,6 @@ public record IdempotencyRecord(String fingerprint, State state, StoredResponse 
         return state == State.COMPLETED;
     }
 
-    /** {@code true} when the given request fingerprint is the one that originally claimed the key. */
     public boolean matches(String otherFingerprint) {
         return fingerprint.equals(otherFingerprint);
     }

@@ -44,6 +44,7 @@ public final class InMemoryIdempotencyStore implements IdempotencyStore {
         Instant now = clock.instant();
         Entry fresh = new Entry(IdempotencyRecord.inFlight(fingerprint), expiry(now, ttl));
 
+        // NOTE: compute() locks the bin, so check-and-claim is atomic per key
         Entry result = entries.compute(key, (k, existing) ->
                 existing == null || existing.isExpiredAt(now) ? fresh : existing);
 
@@ -90,7 +91,7 @@ public final class InMemoryIdempotencyStore implements IdempotencyStore {
         return before - entries.size();
     }
 
-    /** Number of entries currently held, including ones that expired but were not evicted yet. */
+    // includes expired-but-not-yet-evicted entries
     public int size() {
         return entries.size();
     }

@@ -30,6 +30,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import org.springframework.web.util.ContentCachingResponseWrapper;
 import org.springframework.web.util.ServletRequestPathUtils;
 
 /**
@@ -110,6 +111,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         byte[] body = StreamUtils.copyToByteArray(request.getInputStream());
         String fingerprint = RequestFingerprint.of(request.getMethod(), requestTarget(request), body);
         String storeKey = properties.getKeyPrefix() + key;
+        // TODO: the in-flight marker gets the full ttl too; a crashed node blocks the key until it expires
         Duration ttl = ttlFor(handler.getMethod(), idempotent);
 
         Optional<IdempotencyRecord> existing = store.putIfAbsent(storeKey, fingerprint, ttl);
@@ -119,7 +121,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         }
 
         CachedBodyHttpServletRequest replayableRequest = new CachedBodyHttpServletRequest(request, body);
-        CapturingResponseWrapper capturingResponse = new CapturingResponseWrapper(response);
+        ContentCachingResponseWrapper capturingResponse = new ContentCachingResponseWrapper(response);
         try {
             chain.doFilter(replayableRequest, capturingResponse);
         } catch (IOException | ServletException | RuntimeException | Error e) {
@@ -130,7 +132,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         }
 
         if (request.isAsyncStarted()) {
-            // The response will be produced on another thread later on; we cannot capture it here.
+            // response gets written later on another thread, nothing to capture here
             log.warn("Async handlers are not supported by @Idempotent; releasing key for " + requestTarget(request));
             store.remove(storeKey);
             capturingResponse.copyBodyToResponse();
@@ -177,7 +179,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         response.flushBuffer();
     }
 
-    private static StoredResponse capture(CapturingResponseWrapper wrapper) {
+    private static StoredResponse capture(ContentCachingResponseWrapper wrapper) {
         Map<String, List<String>> headers = new LinkedHashMap<>();
         for (String name : wrapper.getHeaderNames()) {
             if (!NON_REPLAYABLE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
